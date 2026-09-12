@@ -1,0 +1,781 @@
+{
+  "name": "AI Customer Support Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.6-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        680,
+        40
+      ],
+      "id": "fb824c8d-a237-4721-8397-d009a9c3c31e",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "p58sHs9rhCniNJBi",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-customer-support",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        -176
+      ],
+      "id": "1ddb9b1d-d9db-4662-ba48-850277ce0bec",
+      "name": "Receive Customer Request",
+      "webhookId": "bc0f2870-2a04-4f56-8363-7cf515047ecd"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7258eb7d-0114-40e1-bc94-b55e3f5d0751",
+              "name": "customer_name",
+              "value": "={{ $json.body.customer_name }}",
+              "type": "string"
+            },
+            {
+              "id": "e04a281b-b94c-49cb-b373-dc1aa3187748",
+              "name": "email",
+              "value": "={{ $json.body.email }}",
+              "type": "string"
+            },
+            {
+              "id": "ae474e03-212c-4bbc-9bfd-d8a32fd7f0fb",
+              "name": "subject",
+              "value": "={{ $json.body.subject }}",
+              "type": "string"
+            },
+            {
+              "id": "4bd74440-e6e2-49f4-ae47-309348941256",
+              "name": "message",
+              "value": "={{ $json.body.message }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        224,
+        -176
+      ],
+      "id": "c4701cbe-0825-4c3f-98ef-06ac08d08765",
+      "name": "Prepare Customer Ticket"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "aadf6137-4c09-4740-a505-f622cac5478b",
+              "leftValue": "={{ $json.customer_name }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "e5b2bae8-00a8-4d38-a9a4-972939b57146",
+              "leftValue": "={{ $json.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "0d0bb3fc-451c-481e-9349-cacd55f896f3",
+              "leftValue": "={{ $json.message }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        448,
+        -176
+      ],
+      "id": "303f18a6-0cd5-4758-a51b-c97bcb044429",
+      "name": "Validate Customer Request"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an AI customer support agent for a business.\n\nAnalyze the customer's support request and provide a helpful and accurate response.\n\nCustomer Name:\n{{ $json.customer_name }}\n\nEmail:\n{{ $json.email }}\n\nSubject:\n{{ $json.subject }}\n\nCustomer Message:\n{{ $json.message }}\n\nIMPORTANT:\n- Use the connected knowledge base (RAG tool) to find relevant information before answering.\n- Do not invent policies, pricing, refund decisions, account details, or technical information.\n- If the knowledge base does not contain enough information, clearly state that the request requires human support.\n- Never ask the customer for passwords, authentication codes, or sensitive credentials.\n- Keep the response professional, concise, and suitable for sending directly to the customer.\n\nDetermine:\n1. Category of the support request\n2. Priority: Low, Medium, or High\n3. Sentiment: Positive, Neutral, or Negative\n4. Recommended action\n5. Final customer response\n\nReturn the result in this format:\n\nCategory: [category]\nPriority: [Low/Medium/High]\nSentiment: [Positive/Neutral/Negative]\nRecommended Action: [action]\nCustomer Response: [response]",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        704,
+        -176
+      ],
+      "id": "2a5438c1-f66d-494e-b2ef-84b0b1df1fd3",
+      "name": "AI Support Agent"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ai = $json.output || \"\";\n\nconst category = ai.match(/Category:\\s*(.+)/i)?.[1]?.trim() || \"\";\nconst priority = ai.match(/Priority:\\s*(.+)/i)?.[1]?.trim() || \"\";\nconst sentiment = ai.match(/Sentiment:\\s*(.+)/i)?.[1]?.trim() || \"\";\n\nconst recommendedAction =\n  ai.match(/Recommended Action:\\s*(.+)/i)?.[1]?.trim() || \"\";\n\nconst customerResponse =\n  ai.split(/Customer Response:\\s*/i)[1]?.trim() || \"\";\n\nconst ticket = $('Prepare Customer Ticket').item.json;\n\nconst message = ticket.message.toLowerCase();\nconst categoryLower = category.toLowerCase();\nconst priorityLower = priority.toLowerCase();\n\n// Human escalation rules\nconst securityIssue =\n  categoryLower.includes(\"security\") ||\n  message.includes(\"hacked\") ||\n  message.includes(\"unauthorized\") ||\n  message.includes(\"accessed my account\");\n\nconst refundRequest =\n  categoryLower.includes(\"refund\") ||\n  message.includes(\"refund\");\n\nconst highPriority =\n  priorityLower === \"high\";\n\nconst paymentStillFailing =\n  categoryLower.includes(\"payment\") &&\n  (\n    message.includes(\"still failing\") ||\n    message.includes(\"continues to fail\") ||\n    message.includes(\"failed again\") ||\n    message.includes(\"tried again\") ||\n    message.includes(\"retry\") ||\n    message.includes(\"multiple times\")\n  );\n\nconst loginStillBlocked =\n  categoryLower.includes(\"login\") &&\n  (\n    message.includes(\"still cannot\") ||\n    message.includes(\"still can't\") ||\n    message.includes(\"reset\") ||\n    message.includes(\"after resetting\")\n  );\n\nconst escalationRequired =\n  highPriority ||\n  securityIssue ||\n  refundRequest ||\n  paymentStillFailing ||\n  loginStillBlocked;\n\nlet escalationReason = \"\";\n\nif (securityIssue) {\n  escalationReason = \"Security-related issue requires human support.\";\n} else if (refundRequest) {\n  escalationReason = \"Refund request requires human review.\";\n} else if (paymentStillFailing) {\n  escalationReason = \"Payment continues to fail after troubleshooting.\";\n} else if (loginStillBlocked) {\n  escalationReason = \"Customer still cannot access the account after troubleshooting.\";\n} else if (highPriority) {\n  escalationReason = \"High-priority support request requires human attention.\";\n}\n\nreturn [{\n  json: {\n    customer_name: ticket.customer_name,\n    email: ticket.email,\n    subject: ticket.subject,\n    message: ticket.message,\n    category,\n    priority,\n    sentiment,\n    recommended_action: recommendedAction,\n    ai_response: customerResponse,\n    escalation_required: escalationRequired,\n    escalation_reason: escalationReason\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1168,
+        -176
+      ],
+      "id": "fc122427-6d22-4d32-8884-a5fe6caf9b3d",
+      "name": "Parse AI Support Result"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO customers (\n    customer_name,\n    email,\n    total_tickets,\n    last_category,\n    last_priority,\n    last_sentiment,\n    last_contacted_at\n)\nVALUES (\n    '{{ $json.customer_name }}',\n    '{{ $json.email }}',\n    1,\n    '{{ $json.category }}',\n    '{{ $json.priority }}',\n    '{{ $json.sentiment }}',\n    NOW()\n)\nON CONFLICT (email)\nDO UPDATE SET\n    customer_name = EXCLUDED.customer_name,\n    total_tickets = customers.total_tickets + 1,\n    last_category = EXCLUDED.last_category,\n    last_priority = EXCLUDED.last_priority,\n    last_sentiment = EXCLUDED.last_sentiment,\n    last_contacted_at = NOW()\nRETURNING\n    id AS customer_id,\n    customer_name,\n    email,\n    total_tickets,\n    last_category AS category,\n    last_priority AS priority,\n    last_sentiment AS sentiment,\n    last_contacted_at,\n    '{{ $json.subject }}' AS subject,\n    '{{ $json.message }}' AS message,\n    '{{ $json.recommended_action }}' AS recommended_action,\n    '{{ $json.ai_response }}' AS ai_response,\nCASE\n    WHEN '{{ $json.escalation_required }}' = 'true' THEN TRUE\n    ELSE FALSE\nEND AS escalation_required,\n    '{{ $json.escalation_reason }}' AS escalation_reason;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1392,
+        -176
+      ],
+      "id": "67430829-f933-4cea-b934-14a8758b8c1f",
+      "name": "Upsert Customer CRM",
+      "credentials": {
+        "postgres": {
+          "id": "PXmLyA1hJRgG0Jwt",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "support_tickets",
+          "mode": "list",
+          "cachedResultName": "support_tickets"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "customer_name": "={{ $json.customer_name }}",
+            "email": "={{ $json.email }}",
+            "subject": "={{$json.subject}}",
+            "message": "={{$json.message}}",
+            "category": "={{$json.category}}",
+            "priority": "={{$json.priority}}",
+            "sentiment": "={{$json.sentiment}}",
+            "recommended_action": "={{$json.recommended_action}}",
+            "ai_response": "={{$json.ai_response}}",
+            "escalation_required": "={{ $json.escalation_required }}",
+            "escalation_reason": "={{ $json.escalation_reason }}",
+            "customer_id": "={{ $json.customer_id }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "priority",
+              "displayName": "priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "sentiment",
+              "displayName": "sentiment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "recommended_action",
+              "displayName": "recommended_action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "ai_response",
+              "displayName": "ai_response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "escalation_required",
+              "displayName": "escalation_required",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "escalation_reason",
+              "displayName": "escalation_reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "customer_id",
+              "displayName": "customer_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1616,
+        -176
+      ],
+      "id": "d1b4ac03-11cc-44fc-afc8-b0b22b79493d",
+      "name": "Save Support Ticket",
+      "credentials": {
+        "postgres": {
+          "id": "PXmLyA1hJRgG0Jwt",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "matrixtron93@gmail.com",
+        "subject": "=AI Support Ticket - {{ $json.category }} - {{ $json.priority }}",
+        "message": "=Customer Support Ticket  Customer Name: {{ $json.customer_name }} Email: {{ $json.email }} Subject: {{ $json.subject }}  Category: {{ $json.category }} Priority: {{ $json.priority }} Sentiment: {{ $json.sentiment }}  Recommended Action: {{ $json.recommended_action }}  AI Customer Response: {{ $json.ai_response }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1840,
+        -176
+      ],
+      "id": "7aa20674-97a0-4038-851a-bc687850c1bf",
+      "name": "Send Support Notification",
+      "webhookId": "978becd5-d0ab-451e-a478-a85d32c8b89e",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EUV1JGMD6jkBVLvZ",
+          "name": "Gmail account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6e116b38-eaf2-4bb3-aa68-473456ae8fcd",
+              "leftValue": "={{ $('Parse AI Support Result').item.json.escalation_required }}",
+              "rightValue": "=",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2064,
+        -176
+      ],
+      "id": "5b95f8df-d200-403e-a416-4b8889e87b37",
+      "name": "Check Human Escalation"
+    },
+    {
+      "parameters": {
+        "sendTo": "matrixtron93@gmail.com",
+        "subject": "=🚨 HUMAN SUPPORT ESCALATION - {{ $('Parse AI Support Result').item.json.priority }} - {{ $('Parse AI Support Result').item.json.category }}",
+        "message": "=HUMAN SUPPORT ESCALATION\n\nCustomer Name: {{ $('Parse AI Support Result').item.json.customer_name }}\nCustomer Email: {{ $('Parse AI Support Result').item.json.email }}\n\nSubject: {{ $('Parse AI Support Result').item.json.subject }}\nCategory: {{ $('Parse AI Support Result').item.json.category }}\nPriority: {{ $('Parse AI Support Result').item.json.priority }}\nSentiment: {{ $('Parse AI Support Result').item.json.sentiment }}\n\nCustomer Message:\n{{ $('Parse AI Support Result').item.json.message }}\n\nRecommended Action:\n{{ $('Parse AI Support Result').item.json.recommended_action }}\n\nEscalation Reason:\n{{ $('Parse AI Support Result').item.json.escalation_reason }}\n\nAI Response:\n{{ $('Parse AI Support Result').item.json.ai_response }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2288,
+        -256
+      ],
+      "id": "848caf73-7e96-4351-b396-9c4dfdf86d83",
+      "name": "Send Escalation Alert",
+      "webhookId": "00e8d110-f059-4e88-8549-7b986649c78e",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EUV1JGMD6jkBVLvZ",
+          "name": "Gmail account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  success: true,\n  customer: $('Prepare Customer Ticket').item.json.customer_name,\n  response: $('Parse AI Support Result').item.json.ai_response\n}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2512,
+        -176
+      ],
+      "id": "28d5506a-ac4e-4200-82d2-46dff3ed8e21",
+      "name": "Return Support Response"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4c05f04a-1fe5-45ea-b76a-dffb3207a796",
+              "name": "knowledge_base",
+              "value": "=# Customer Support Knowledge Base\n\n## Payment Failed\n\nIf a customer's payment fails, ask them to verify that their payment method is active and that the billing information is correct.\n\nThe customer can retry the payment after checking their payment method.\n\nIf the payment continues to fail after retrying, the issue should be escalated to human support.\n\n## Login Problems\n\nIf a customer cannot log in, they should first verify that they are using the correct email address and password.\n\nIf they forgot their password, they should use the password reset option on the login page.\n\nIf the customer still cannot access the account after resetting the password, escalate the issue to human support.\n\n## Profile Changes\n\nCustomers can update their profile information from their account settings.\n\nIf a customer cannot edit their profile information, the issue should be escalated to human support.\n\n## Refund Requests\n\nRefund requests must be reviewed by human support.\n\nThe AI agent must not promise or approve a refund.\n\n## Account Security\n\nNever ask customers to provide their password, authentication codes, or other sensitive account credentials.\n\nSecurity-related issues should be escalated to human support.\n\n## Human Escalation\n\nEscalate the request when:\n\n- The knowledge base does not contain enough information.\n- The customer reports a security issue.\n- The customer requests a refund approval.\n- The customer still cannot access their account after troubleshooting.\n- The customer requires account-specific action that the AI cannot perform.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        0,
+        352
+      ],
+      "id": "ab8a509b-2506-4f45-9dd0-9535f77bbe9a",
+      "name": "Support Knowledge Base"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "memoryKey": {
+          "__rl": true,
+          "mode": "list",
+          "value": "vector_store_key"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreInMemory",
+      "typeVersion": 1.3,
+      "position": [
+        224,
+        352
+      ],
+      "id": "87e0f546-a9aa-41d9-afb2-85781b28eb1d",
+      "name": "Build Support Knowledge Base"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        232,
+        584
+      ],
+      "id": "af993f93-0a62-4f89-a285-2b7f197b01b2",
+      "name": "Gemini KB Embeddings",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "p58sHs9rhCniNJBi",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        360,
+        584
+      ],
+      "id": "a09b6f30-0cfb-4ba9-b379-ecffe4a0a9bc",
+      "name": "Load Support Documents"
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "Search the customer support knowledge base for accurate information about payments, login problems, profile changes, refunds, account security, and human escalation.",
+        "memoryKey": {
+          "__rl": true,
+          "mode": "list",
+          "value": "vector_store_key"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreInMemory",
+      "typeVersion": 1.3,
+      "position": [
+        808,
+        40
+      ],
+      "id": "138d09fc-540e-4d67-9d56-3f5685ab2e8a",
+      "name": "Search Support Knowledge Base"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        888,
+        248
+      ],
+      "id": "b16c16d7-6e29-47b0-bdc6-cbb020ccc9fa",
+      "name": "Gemini RAG Embeddings",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "p58sHs9rhCniNJBi",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Support Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Receive Customer Request": {
+      "main": [
+        [
+          {
+            "node": "Prepare Customer Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Customer Ticket": {
+      "main": [
+        [
+          {
+            "node": "Validate Customer Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Customer Request": {
+      "main": [
+        [
+          {
+            "node": "AI Support Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Support Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Support Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Support Result": {
+      "main": [
+        [
+          {
+            "node": "Upsert Customer CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Customer CRM": {
+      "main": [
+        [
+          {
+            "node": "Save Support Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Support Ticket": {
+      "main": [
+        [
+          {
+            "node": "Send Support Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Support Notification": {
+      "main": [
+        [
+          {
+            "node": "Check Human Escalation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Human Escalation": {
+      "main": [
+        [
+          {
+            "node": "Send Escalation Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Support Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Escalation Alert": {
+      "main": [
+        [
+          {
+            "node": "Return Support Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Support Knowledge Base": {
+      "main": [
+        [
+          {
+            "node": "Build Support Knowledge Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini KB Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Build Support Knowledge Base",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Support Documents": {
+      "ai_document": [
+        [
+          {
+            "node": "Build Support Knowledge Base",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Support Knowledge Base": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Support Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini RAG Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Search Support Knowledge Base",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "e34ff206-a885-4930-be60-046aa7dc66cb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b5c4c433300af6e6085cbda8f2ac6b56a06d6a231860c257d9d66c9227948b19"
+  },
+  "nodeGroups": [],
+  "id": "7WUmMZpzl9lDpR4O",
+  "tags": []
+}
